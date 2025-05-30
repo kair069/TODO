@@ -1,0 +1,36 @@
+server:
+  port: 8888
+
+spring:
+  application:
+    name: config-server
+
+  cloud:
+    config:
+      server:
+        git:
+          uri: https://github.com/kair069/tu-repo-config
+          default-label: main
+          clone-on-start: true
+          timeout: 10
+        health:
+          repositories:
+            user-service:
+              label: main
+              name: user-service
+              profiles: default
+
+# Configuración de seguridad básica (opcional)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,refresh
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    org.springframework.cloud.config: DEBUG
+    org.springframework.web: DEBUG

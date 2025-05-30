@@ -1,0 +1,108 @@
+#server:
+#  port: 8086
+#
+#spring:
+#  application:
+#    name: api-gateway
+#
+#  cloud:
+#    gateway:
+#      routes:
+#        - id: service-a
+#          uri: http://localhost:8082
+#          predicates:
+#            - Path=/service-a/**
+#          filters:
+#            - StripPrefix=1
+#
+#        - id: auth-service
+#          uri: http://localhost:8081
+#          predicates:
+#            - Path=/service-b/**
+#          filters:
+#            - StripPrefix=1
+#
+#
+#        - id: analytics-service
+#          uri: http://localhost:8083
+#          predicates:
+#            - Path=/analytic/**
+#          filters:
+#            - StripPrefix=1
+#
+server:
+  port: 8086
+
+spring:
+  application:
+    name: api-gateway
+
+  cloud:
+    gateway:
+      routes:
+        # TUS RUTAS ORIGINALES + PEQUEÑAS MEJORAS SEGURAS
+        - id: service-a
+          uri: http://localhost:8082
+          predicates:
+            - Path=/service-a/**
+          filters:
+            - StripPrefix=1
+            - AddRequestHeader=X-Gateway-Request, true
+
+        - id: auth-service
+          uri: http://localhost:8081
+          predicates:
+            - Path=/service-b/**
+          filters:
+            - StripPrefix=1
+            - AddResponseHeader=X-Service, auth-service
+
+        - id: analytics-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=/analytic/**
+          filters:
+            - StripPrefix=1
+            - AddRequestHeader=X-Gateway-Source, api-gateway  # Header simple y seguro
+
+        # 🆕 NUEVA RUTA CON CIRCUIT BREAKER
+        - id: auth-with-circuit-breaker
+          uri: http://localhost:8081
+          predicates:
+            - Path=/auth-cb/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: auth-service-cb
+                fallbackUri: forward:/fallback
+
+        # 🆕 RUTA DE FALLBACK
+        - id: fallback-route
+          uri: http://localhost:8086
+          predicates:
+            - Path=/fallback
+          filters:
+            - SetStatus=503
+            - AddResponseHeader=Content-Type, application/json
+
+# CONFIGURACIÓN ADICIONAL OPCIONAL
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,gateway,circuitbreakers
+
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO
+
+# 🆕 CONFIGURACIÓN SIMPLE DEL CIRCUIT BREAKER
+resilience4j:
+  circuitbreaker:
+    instances:
+      auth-service-cb:
+        slidingWindowSize: 5
+        minimumNumberOfCalls: 3
+        failureRateThreshold: 60
+        waitDurationInOpenState: 10s
